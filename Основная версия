@@ -1,0 +1,232 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509 import CertificateBuilder, Name
+from cryptography.x509.oid import NameOID
+from cryptography.x509 import NameAttribute
+from datetime import datetime, timedelta
+from cryptography import x509
+
+class DigitalSignatureApp:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Digital Signature App")
+        self.master.geometry('1000x600')
+        self.master.configure(bg='#111111')
+
+        self.main_frame = tk.Frame(self.master, bg='#111111')
+        self.main_frame.pack(pady=20)
+
+        self.file_frame = tk.Frame(self.main_frame, bg='#111111', bd=10, relief="groove", highlightbackground="#111111", highlightthickness=2)
+        self.file_frame.grid(row=0, column=0, padx=20)
+
+        self.file_label = tk.Label(self.file_frame, text="Выберите файл:", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.file_label.grid(row=0, column=0, padx=(20, 0), pady=(20, 10))
+
+        self.file_button = tk.Button(self.file_frame, text="Выбрать файл", command=self.choose_file, bg='#64B5F6', fg='#000000', font=('Arial', 12), relief="flat", bd=0, highlightbackground="#111111", highlightthickness=2)
+        self.file_button.grid(row=0, column=1, padx=(10, 20), pady=(20, 10))
+
+        self.clear_file_button = tk.Button(self.file_frame, text="Очистить выбранный файл", command=self.clear_file, bg='#64B5F6', fg='#000000', font=('Arial', 12), relief="flat", bd=0, highlightbackground="#111111", highlightthickness=2)
+        self.clear_file_button.grid(row=0, column=2, padx=(10, 20), pady=(20, 10))
+
+        self.generate_signature_button = tk.Button(self.file_frame, text="Создать подпись", command=self.generate_signature, bg='#64B5F6', fg='#000000', font=('Arial', 12), relief="flat", bd=0, highlightbackground="#111111", highlightthickness=2)
+        self.generate_signature_button.grid(row=0, column=3, padx=(10, 20), pady=(20, 10))
+
+        self.verify_signature_button = tk.Button(self.file_frame, text="Проверить подпись", command=self.verify_signature, bg='#64B5F6', fg='#000000', font=('Arial', 12), relief="flat", bd=0, highlightbackground="#111111", highlightthickness=2)
+        self.verify_signature_button.grid(row=0, column=4, padx=(10, 20), pady=(20, 10))
+
+        self.selected_file_label = tk.Label(self.file_frame, text="", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.selected_file_label.grid(row=1, column=0, columnspan=5, padx=20, pady=(10, 20))
+
+        self.certificate_frame = tk.Frame(self.main_frame, bg='#111111', bd=10, relief="groove", highlightbackground="#111111", highlightthickness=2)
+        self.certificate_frame.grid(row=1, column=0, padx=20, pady=20)
+
+        self.name_label = tk.Label(self.certificate_frame, text="Имя:", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.name_label.grid(row=0, column=0, padx=(20, 0), pady=(20, 10))
+
+        self.name_entry = tk.Entry(self.certificate_frame, font=('Arial', 12))
+        self.name_entry.grid(row=0, column=1, padx=(10, 20), pady=(20, 10))
+
+        self.surname_label = tk.Label(self.certificate_frame, text="Фамилия:", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.surname_label.grid(row=1, column=0, padx=(20, 0), pady=(10, 10))
+
+        self.surname_entry = tk.Entry(self.certificate_frame, font=('Arial', 12))
+        self.surname_entry.grid(row=1, column=1, padx=(10, 20), pady=(10, 10))
+
+        self.organization_label = tk.Label(self.certificate_frame, text="Организация:", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.organization_label.grid(row=2, column=0, padx=(20, 0), pady=(10, 10))
+
+        self.organization_entry = tk.Entry(self.certificate_frame, font=('Arial', 12))
+        self.organization_entry.grid(row=2, column=1, padx=(10, 20), pady=(10, 10))
+
+        self.email_label = tk.Label(self.certificate_frame, text="Электронная почта:", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.email_label.grid(row=3, column=0, padx=(20, 0), pady=(10, 10))
+
+        self.email_entry = tk.Entry(self.certificate_frame, font=('Arial', 12))
+        self.email_entry.grid(row=3, column=1, padx=(10, 20), pady=(10, 10))
+
+        self.country_label = tk.Label(self.certificate_frame, text="Страна (код):", bg='#111111', fg='#f8f8ff', font=('Arial', 12))
+        self.country_label.grid(row=4, column=0, padx=(20, 0), pady=(10, 10))
+
+        self.country_entry = tk.Entry(self.certificate_frame, font=('Arial', 12))
+        self.country_entry.grid(row=4, column=1, padx=(10, 20), pady=(10, 10))
+
+        self.generate_certificate_button = tk.Button(self.certificate_frame, text="Создать сертификат", command=self.generate_certificate, bg='#64B5F6', fg='#000000', font=('Arial', 12), relief="flat", bd=0, highlightbackground="#111111", highlightthickness=2)
+        self.generate_certificate_button.grid(row=5, column=0, columnspan=2, padx=20, pady=(10, 20))
+
+    def choose_file(self):
+        self.file_path = filedialog.askopenfilename()
+        self.selected_file_label.config(text="Выбранный файл: " + self.file_path)
+        self.master.geometry('1200x600')
+
+    def clear_file(self):
+        self.selected_file_label.config(text="")
+        self.master.geometry('1000x600')
+
+    def generate_signature(self):
+        if not hasattr(self, 'file_path'):
+            messagebox.showerror("Ошибка", "Пожалуйста, выберите файл.")
+            return
+
+        # Генерация ключевой пары
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        public_key = private_key.public_key()
+
+        # Сохранение ключей в файлы
+        with open("private_key.pem", "wb") as key_file:
+            key_file.write(
+                private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+            )
+
+        with open("public_key.pem", "wb") as key_file:
+            key_file.write(
+                public_key.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+            )
+
+        # Чтение файла и создание подписи
+        with open(self.file_path, "rb") as file:
+            data = file.read()
+
+        signature = private_key.sign(
+            data,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+
+        # Сохранение подписи в файл
+        with open(self.file_path + ".sig", "wb") as signature_file:
+            signature_file.write(signature)
+
+        messagebox.showinfo("Успех", "Подпись успешно создана.")
+
+    def verify_signature(self):
+        if not hasattr(self, 'file_path'):
+            messagebox.showerror("Ошибка", "Пожалуйста, выберите файл.")
+            return
+
+        try:
+            with open("public_key.pem", "rb") as key_file:
+                self.public_key = serialization.load_pem_public_key(
+                    key_file.read(),
+                    backend=default_backend()
+                )
+
+            with open(self.file_path, "rb") as file:
+                data = file.read()
+
+            with open(self.file_path + ".sig", "rb") as signature_file:
+                signature = signature_file.read()
+
+            self.public_key.verify(
+                signature,
+                data,
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+
+            messagebox.showinfo("Результат", "Подпись верна.")
+        except Exception as e:
+            messagebox.showerror("Ошибка", "Подпись недействительна: " + str(e))
+
+    def generate_certificate(self):
+        name = self.name_entry.get()
+        surname = self.surname_entry.get()
+        organization = self.organization_entry.get()
+        email = self.email_entry.get()
+        country = self.country_entry.get()
+
+        if not name or not surname or not organization or not email or not country:
+            messagebox.showerror("Ошибка", "Пожалуйста, заполните все поля.")
+            return
+
+        if len(country) != 2:
+            messagebox.showerror("Ошибка", "Код страны должен состоять из 2 букв.")
+            return
+
+        # Генерация ключевой пары
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        public_key = private_key.public_key()
+
+        # Создание сертификата
+        builder = CertificateBuilder()
+        builder = builder.subject_name(
+            Name([
+                NameAttribute(NameOID.COMMON_NAME, name + " " + surname),
+                NameAttribute(NameOID.ORGANIZATION_NAME, organization),
+                NameAttribute(NameOID.EMAIL_ADDRESS, email),
+                NameAttribute(NameOID.COUNTRY_NAME, country),
+            ])
+        )
+        builder = builder.issuer_name(
+            Name([
+                NameAttribute(NameOID.COMMON_NAME, name + " " + surname),
+                NameAttribute(NameOID.ORGANIZATION_NAME, organization),
+                NameAttribute(NameOID.EMAIL_ADDRESS, email),
+                NameAttribute(NameOID.COUNTRY_NAME, country),
+            ])
+        )
+        builder = builder.public_key(public_key)
+        builder = builder.serial_number(x509.random_serial_number())
+        builder = builder.not_valid_before(datetime.utcnow())
+        builder = builder.not_valid_after(datetime.utcnow() + timedelta(days=365))
+
+        cert = builder.sign(private_key, hashes.SHA256(), default_backend())
+
+        # Сохранение сертификата в файл
+        with open("certificate.crt", "wb") as cert_file:
+            cert_file.write(cert.public_bytes(serialization.Encoding.PEM))
+
+        messagebox.showinfo("Успех", "Сертификат успешно создан.")
+
+def main():
+    root = tk.Tk()
+    app = DigitalSignatureApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
