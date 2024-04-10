@@ -1,0 +1,80 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import datetime
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+
+root = tk.Tk()
+root.title('Создание сертификата безопасности RSA')
+root.geometry('400x300')
+root.configure(bg='#222222')
+
+def generate_certificate():
+    name = name_entry.get()
+    surname = surname_entry.get()
+    organization = organization_entry.get()
+
+    if not name or not surname or not organization:
+        messagebox.showwarning('Предупреждение', 'Пожалуйста, введите имя, фамилию и организацию!')
+        return
+
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend()
+    )
+
+    public_key = private_key.public_key()
+
+    subject = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, f"{name} {surname}"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization),
+    ])
+
+    now = datetime.datetime.utcnow()
+    duration = datetime.timedelta(days=365)  # Срок действия в 365 дней
+
+    certificate = x509.CertificateBuilder().subject_name(
+        subject
+    ).issuer_name(
+        subject
+    ).public_key(
+        public_key
+    ).serial_number(
+        x509.random_serial_number()
+    ).not_valid_before(
+        now
+    ).not_valid_after(
+        now + duration
+    ).sign(private_key, hashes.SHA256(), default_backend())
+
+    certificate_file = f'certificate_{now.strftime("%Y%m%d%H%M%S")}.crt'
+
+    with open(certificate_file, 'wb') as f:
+        f.write(certificate.public_bytes(serialization.Encoding.PEM))
+
+    messagebox.showinfo('Успех', f'Сертификат безопасности RSA успешно создан и сохранен в файле {certificate_file}!')
+
+name_label = tk.Label(root, text='Имя:', bg='#222222', fg='#ffffff')
+name_label.pack(pady=10)
+name_entry = tk.Entry(root)
+name_entry.pack(pady=5)
+
+surname_label = tk.Label(root, text='Фамилия:', bg='#222222', fg='#ffffff')
+surname_label.pack(pady=10)
+surname_entry = tk.Entry(root)
+surname_entry.pack(pady=5)
+
+organization_label = tk.Label(root, text='Организация:', bg='#222222', fg='#ffffff')
+organization_label.pack(pady=10)
+organization_entry = tk.Entry(root)
+organization_entry.pack(pady=5)
+
+generate_button = tk.Button(root, text='Создать сертификат RSA', command=generate_certificate)
+generate_button.pack(pady=20)
+
+root.mainloop()
